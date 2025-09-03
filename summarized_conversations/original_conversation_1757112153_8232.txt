@@ -1,0 +1,1 @@
+{'role': 'user', 'content': '<tool_result> <see-image> ToolResult(success=True, output="Successfully loaded the image \'file_00000000bd6861fda4e5e54e0317b311.png\'.") </see-image> </tool_result>'}

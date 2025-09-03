@@ -1,0 +1,281 @@
+// BlueRock Asset Management Database Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String   @id @default(uuid())
+  email             String   @unique
+  password          String
+  firstName         String
+  lastName          String
+  phone             String?
+  country           String?
+  isActive          Boolean  @default(true)
+  isVerified        Boolean  @default(false)
+  balance           Decimal  @default(0) @db.Decimal(15, 2)
+  totalInvested     Decimal  @default(0) @db.Decimal(15, 2)
+  totalEarnings     Decimal  @default(0) @db.Decimal(15, 2)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  lastLoginAt       DateTime?
+
+  // Relations
+  deposits          Deposit[]
+  withdrawals       Withdrawal[]
+  investmentPlans   InvestmentPlan[]
+  transactions      Transaction[]
+  withdrawalPins    WithdrawalPin[]
+
+  @@map("users")
+}
+
+model AdminUser {
+  id          String   @id @default(uuid())
+  email       String   @unique
+  password    String
+  firstName   String
+  lastName    String
+  role        AdminRole @default(ADMIN)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  lastLoginAt DateTime?
+
+  // Relations
+  auditLogs   AuditLog[]
+
+  @@map("admin_users")
+}
+
+enum AdminRole {
+  SUPER_ADMIN
+  ADMIN
+  SUPPORT
+}
+
+model Deposit {
+  id              String        @id @default(uuid())
+  userId          String
+  amount          Decimal       @db.Decimal(15, 2)
+  cryptoType      CryptoType
+  walletAddress   String
+  transactionId   String?
+  status          DepositStatus @default(PENDING)
+  confirmedAt     DateTime?
+  confirmedBy     String?
+  notes           String?
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Relations
+  user            User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  investmentPlan  InvestmentPlan?
+
+  @@map("deposits")
+}
+
+enum DepositStatus {
+  PENDING
+  CONFIRMED
+  REJECTED
+}
+
+enum CryptoType {
+  BTC
+  ETH
+  BNB
+  USDT_ERC20
+  USDT_BEP20
+  USDT_TRC20
+}
+
+model Withdrawal {
+  id              String           @id @default(uuid())
+  userId          String
+  amount          Decimal          @db.Decimal(15, 2)
+  cryptoType      CryptoType
+  walletAddress   String
+  status          WithdrawalStatus @default(PENDING)
+  requestedAt     DateTime         @default(now())
+  processedAt     DateTime?
+  processedBy     String?
+  transactionId   String?
+  notes           String?
+  pinId           String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  // Relations
+  user            User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  pin             WithdrawalPin? @relation(fields: [pinId], references: [id])
+
+  @@map("withdrawals")
+}
+
+enum WithdrawalStatus {
+  PENDING
+  PIN_REQUIRED
+  APPROVED
+  PROCESSING
+  COMPLETED
+  REJECTED
+}
+
+model WithdrawalPin {
+  id          String    @id @default(uuid())
+  userId      String
+  pin         String
+  isUsed      Boolean   @default(false)
+  expiresAt   DateTime
+  usedAt      DateTime?
+  createdAt   DateTime  @default(now())
+
+  // Relations
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  withdrawals Withdrawal[]
+
+  @@map("withdrawal_pins")
+}
+
+model InvestmentPlan {
+  id              String              @id @default(uuid())
+  userId          String
+  depositId       String              @unique
+  amount          Decimal             @db.Decimal(15, 2)
+  weeklyPayout    Decimal             @db.Decimal(15, 2)
+  totalPayouts    Int                 @default(8)
+  completedPayouts Int                @default(0)
+  status          InvestmentPlanStatus @default(ACTIVE)
+  startDate       DateTime
+  endDate         DateTime
+  nextPayoutDate  DateTime
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  // Relations
+  user            User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  deposit         Deposit @relation(fields: [depositId], references: [id])
+  payouts         Payout[]
+
+  @@map("investment_plans")
+}
+
+enum InvestmentPlanStatus {
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+model Payout {
+  id               String   @id @default(uuid())
+  investmentPlanId String
+  amount           Decimal  @db.Decimal(15, 2)
+  weekNumber       Int
+  scheduledDate    DateTime
+  paidDate         DateTime?
+  status           PayoutStatus @default(SCHEDULED)
+  transactionId    String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  investmentPlan   InvestmentPlan @relation(fields: [investmentPlanId], references: [id], onDelete: Cascade)
+
+  @@map("payouts")
+}
+
+enum PayoutStatus {
+  SCHEDULED
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model Transaction {
+  id          String          @id @default(uuid())
+  userId      String
+  type        TransactionType
+  amount      Decimal         @db.Decimal(15, 2)
+  description String
+  reference   String?
+  status      TransactionStatus @default(COMPLETED)
+  createdAt   DateTime        @default(now())
+
+  // Relations
+  user        User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("transactions")
+}
+
+enum TransactionType {
+  DEPOSIT
+  WITHDRAWAL
+  PAYOUT
+  BONUS
+  FEE
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  adminUserId String
+  action      String
+  entity      String
+  entityId    String?
+  oldValues   Json?
+  newValues   Json?
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  // Relations
+  adminUser   AdminUser @relation(fields: [adminUserId], references: [id])
+
+  @@map("audit_logs")
+}
+
+model EmailLog {
+  id          String      @id @default(uuid())
+  to          String
+  subject     String
+  template    String
+  status      EmailStatus @default(PENDING)
+  sentAt      DateTime?
+  error       String?
+  retryCount  Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@map("email_logs")
+}
+
+enum EmailStatus {
+  PENDING
+  SENT
+  FAILED
+  BOUNCED
+}
+
+model SystemSetting {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String
+  description String?
+  updatedAt   DateTime @updatedAt
+  updatedBy   String?
+
+  @@map("system_settings")
+}

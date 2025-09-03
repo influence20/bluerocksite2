@@ -1,0 +1,1 @@
+{'role': 'user', 'content': [{'type': 'text', 'text': "Here is the image you requested to see: 'file_00000000bd6861fda4e5e54e0317b311.png'"}]}
